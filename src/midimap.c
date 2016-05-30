@@ -36,6 +36,11 @@
 
 #define MEM_URI "http://gareus.org/oss/lv2/midimap"
 
+#ifndef MAX_CFG_LINE_LEN
+#define MAX_CFG_LINE_LEN 1024
+#endif
+
+
 typedef struct {
 	LV2_URID atom_Blank;
 	LV2_URID atom_Object;
@@ -58,6 +63,7 @@ typedef struct {
 	uint8_t  mask[3];
 	uint8_t  match[3];
 
+	//uint32_t tx_len; // TODO allow to map length/type
 	uint8_t  tx_mask[3];
 	uint8_t  tx_set[3];
 } Rule;
@@ -183,8 +189,232 @@ static void clear_rule (Rule *r)
 static void add_rule (RuleSet* rs, Rule *r)
 {
 	rs->rule = (Rule*) realloc (rs->rule, (rs->count + 1) * sizeof (Rule));
+	if (!rs->rule) {
+		fprintf (stderr, "MidiMap.lv2 error: Out Of Memory\n");
+		rs->count = 0;
+		return;
+	}
 	memcpy (&rs->rule[rs->count], r, sizeof (Rule));
 	++rs->count;
+}
+
+static bool parse_status (Rule* r, const char* arg)
+{
+	int param[2];
+	if        (!strcasecmp(arg, "ANY")) {
+		r->mask[0] = 0x00; r->match[0] = 0x00;
+	} else if (1 == sscanf (arg, "NOTEC%i", &param[0])) {
+		r->mask[0] = 0xef; r->match[0] = 0x80 | (param[0] & 0xf);
+	} else if (!strcasecmp(arg, "NOTE")) {
+		r->mask[0] = 0xe0; r->match[0] = 0x80;
+	} else if (!strcasecmp(arg, "NOTEOFF")) {
+		r->mask[0] = 0xf0; r->match[0] = 0x80;
+	} else if (!strcasecmp(arg, "NOTEON")) {
+		r->mask[0] = 0xf0; r->match[0] = 0x90;
+	} else if (!strcasecmp(arg, "Aftertouch")) {
+		r->mask[0] = 0xf0; r->match[0] = 0xa0;
+	} else if (!strcasecmp(arg, "CC")) {
+		r->mask[0] = 0xf0; r->match[0] = 0xb0;
+	} else if (!strcasecmp(arg, "Pitch")) {
+		r->mask[0] = 0xf0; r->match[0] = 0xe0;
+#if 0 // 1,2 byte msgs
+	} else if (!strcasecmp(arg, "PGM")) {
+		r->mask[0] = 0xf0; r->match[0] = 0xc0;
+	} else if (!strcasecmp(arg, "ChanPressure")) {
+		r->mask[0] = 0xf0; r->match[0] = 0xd0; // Aftertouch, 2 bytes
+	} else if (!strcasecmp(arg, "Pos")) {
+		r->mask[0] = 0xff; r->match[0] = 0xf2; // Song Position Pointer, 3 bytes
+	} else if (!strcasecmp(arg, "Song")) {
+		r->mask[0] = 0xff; r->match[0] = 0xf3; // Song select 2 bytes
+	} else if (!strcasecmp(arg, "Start")) {
+		r->mask[0] = 0xff; r->match[0] = 0xfa; // rt 1 byte
+	} else if (!strcasecmp(arg, "Cont")) {
+		r->mask[0] = 0xff; r->match[0] = 0xfb; // rt 1 byte
+	} else if (!strcasecmp(arg, "Stop")) {
+		r->mask[0] = 0xff; r->match[0] = 0xfc; // rt 1 byte
+#endif
+	} else if (2 == sscanf (arg, "%i/%i", &param[0], &param[1])) {
+		r->mask[0] = param[1] & 0xff;
+		r->match[0] = param[0] & 0xff;
+	} else if (1 == sscanf (arg, "%i", &param[0])) {
+		r->mask[0] = 0xff;
+		r->match[0] = param[0] & 0xff;
+	} else {
+		return false;
+	}
+	return true;
+}
+
+static uint8_t parse_note (const char* arg)
+{
+	if (strlen (arg) < 2) {
+		return 0xff;
+	}
+
+	int pos = 1;
+
+	int key;
+	switch (arg[0]) {
+		case 'c': case 'C': key =  0; break;
+		case 'd': case 'D': key =  2; break;
+		case 'e': case 'E': key =  4; break;
+		case 'f': case 'F': key =  5; break;
+		case 'g': case 'G': key =  7; break;
+		case 'a': case 'A': key =  9; break;
+		case 'b': case 'B': key = 11; break;
+		default: return 0xff;
+	}
+
+	if (arg[1] == '#') { ++key; ++pos;}
+	else if (arg[1] == 'b') { --key; ++pos;}
+
+	if (strlen (arg) < pos + 1) {
+		return 0xff;
+	}
+
+	int octave = atoi (&arg[pos]);
+
+	// c-2 == 0
+	int note = (octave + 2) * 12 + key;
+	if (note >= 0 && note <= 127) {
+		return note;
+	}
+	return 0xff;
+}
+
+static bool parse_match (Rule* r, unsigned int i, const char* arg)
+{
+	int param[2];
+	if (!strcasecmp(arg, "ANY")) {
+		r->mask[i] = 0x00; r->match[i] = 0x00;
+	} else if (2 == sscanf (arg, "%i/%i", &param[0], &param[1])) {
+		r->mask[i] = param[1] & 0xff;
+		r->match[i] = param[0] & 0xff;
+	} else if (1 == sscanf (arg, "%i", &param[0])) {
+		r->mask[i] = (i == 0) ? 0xff : 0x7f;
+		r->match[i] = param[0] & 0xff;
+	} else {
+		return false;
+	}
+	return true;
+}
+
+static bool parse_replacement (Rule* r, unsigned int i, const char* arg)
+{
+	int param[2];
+	if (!strcasecmp(arg, "SAME")) {
+		r->tx_mask[i] = 0xff;
+		r->tx_set[i] = 0x00;
+	} else if ((i == 0) && 1 == sscanf (arg, "CHN%i", &param[0])) {
+		r->tx_mask[i] = 0xf0;
+		r->tx_set[i] = param[0] & 0x0f;
+	} else if (2 == sscanf (arg, "%i/%i", &param[0], &param[1])) {
+		r->tx_mask[i] = param[1] & 0xff;
+		r->tx_set[i] = param[0] & 0xff;
+	} else if (1 == sscanf (arg, "%i", &param[0])) {
+		r->tx_mask[i] = 0x00;
+		r->tx_set[i] = param[0] & 0xff;
+	} else {
+		return false;
+	}
+	return true;
+}
+
+static bool parse_line_v1 (RuleSet* rs, const char* line)
+{
+	if (0 == strncmp (line, "forward-unmatched", 17)) {
+		rs->forward_unmatched = true;
+		return true;
+	}
+
+	Rule r;
+	clear_rule (&r);
+
+	char *tmp, *fre, *prt;
+	int i = 0;
+	bool in_match = true;
+	tmp = fre = strdup(line);
+	for (prt = strtok(tmp, " "); prt; prt = strtok(NULL, " "), ++i) {
+		bool rv;
+		if (prt[0] == '#') {
+			break;
+		}
+		if (0 == strcmp(prt, "|")) {
+			if (i == 0 || !in_match) {
+				i = -1;
+				break;
+			}
+			in_match = false;
+			r.len = i;
+			i = -1; // continue bumps it
+			continue;
+		}
+		if (i >= 3) {
+			i = -1;
+			break;
+		}
+
+		if (in_match) {
+			switch (i) {
+				case 0:
+					rv = parse_status (&r, prt);
+					break;
+				case 1:
+					r.match[i] = parse_note (prt); // TODO IFF note-status..
+					if (r.match[i] < 128) {
+						r.mask[i] = 0x7f;
+						rv = true;
+						break;
+					}
+					// no break - fall through
+				default:
+					rv = parse_match (&r, i, prt);
+					break;
+			}
+		} else {
+			switch (i) {
+				case 1:
+					r.tx_set[i] = parse_note (prt); // TODO IFF note-status..
+					if (r.tx_set[i] < 128) {
+						r.tx_mask[i] = 0x7f;
+						rv = true;
+						break;
+					}
+					// no break - fall through
+				default:
+					rv = parse_replacement (&r, i, prt);
+					break;
+			}
+		}
+
+		if (!rv) {
+			i = -1;
+			break;
+		}
+	}
+
+	free (fre);
+	if (i < 1 || i > 3 || in_match) {
+		return false;
+	}
+	if (i != r.len) {
+		// currently only same-length
+		return false;
+	}
+
+	add_rule (rs, &r);
+#ifndef NDEBUG
+	printf ("Rule [%d]", r.len);
+	for (uint32_t b = 0; b < r.len; ++b) {
+		printf (" %02x/%02x", r.match[b], r.mask[b]);
+	}
+	printf (" |");
+	for (uint32_t b = 0; b < r.len; ++b) {
+		printf (" %02x/%02x", r.tx_set[b], r.tx_mask[b]);
+	}
+	printf ("\n");
+#endif
+	return true;
 }
 
 /** non-realtime function to read config,
@@ -208,16 +438,41 @@ parse_config_file (MidiMap* self, const char* fn)
 
 	self->state = calloc (1, sizeof (RuleSet));
 
-	// TODO PARSE cfg to self->state
-#if 0 // test
-	self->state->forward_unmatched = true;
-	Rule r;
-	clear_rule (&r);
-	r.len = 3;
-	r.mask[0] = 0xe0; r.match[0] = 0x80; // any note on/off -event
-	r.tx_mask[0] = 0xf0; r.tx_set[0] = 0x01; // to channel 1
-	add_rule(self->state, &r);
-#endif
+	char line[MAX_CFG_LINE_LEN];
+	unsigned int lineno = 0;
+	unsigned int cfg_version = 0;
+	while (fgets (line, MAX_CFG_LINE_LEN - 1, f) != NULL ) {
+		++lineno;
+		if (strlen(line) == MAX_CFG_LINE_LEN - 1) {
+			lv2_log_error (&self->logger, "MidiMap.lv2: Too long config line %d", lineno);
+			continue;
+		}
+		// strip trailing whitespace
+		while (strlen(line) > 0 && (line[strlen(line) - 1] == '\n' || line[strlen(line) - 1] == '\r' || line[strlen(line) - 1] == ' ' || line[strlen(line) - 1] == '\t')) {
+			line[strlen(line) - 1] = '\0';
+		}
+		// ignore comments and empty lines
+		if (strlen(line) == 0 || line[0] == '#') {
+			continue;
+		}
+
+		if (0 == strncmp (line, "midimap v", 9) && strlen(line) > 9) {
+			cfg_version = atoi (&line[9]);
+			continue;
+		}
+
+		switch (cfg_version) {
+			case 1:
+				if (!parse_line_v1 (self->state, line)) {
+					lv2_log_error (&self->logger, "MidiMap.lv2: Parser error on line %d", lineno);
+				}
+				break;
+			default:
+				lv2_log_error (&self->logger, "MidiMap.lv2: invalid version '%d' on config line %d",
+						cfg_version, lineno);
+				break;
+		}
+	}
 
 	fclose (f);
 	if (ok) {
