@@ -71,6 +71,7 @@ typedef struct {
 typedef struct {
 	unsigned int count;
 	bool forward_unmatched;
+	bool match_all;
 	Rule* rule;
 } RuleSet;
 
@@ -217,7 +218,6 @@ static bool parse_status (Rule* r, const char* arg)
 		r->mask[0] = 0xf0; r->match[0] = 0xb0;
 	} else if (!strcasecmp(arg, "Pitch")) {
 		r->mask[0] = 0xf0; r->match[0] = 0xe0;
-#if 0 // 1,2 byte msgs
 	} else if (!strcasecmp(arg, "PGM")) {
 		r->mask[0] = 0xf0; r->match[0] = 0xc0;
 	} else if (!strcasecmp(arg, "ChanPressure")) {
@@ -232,7 +232,6 @@ static bool parse_status (Rule* r, const char* arg)
 		r->mask[0] = 0xff; r->match[0] = 0xfb; // rt 1 byte
 	} else if (!strcasecmp(arg, "Stop")) {
 		r->mask[0] = 0xff; r->match[0] = 0xfc; // rt 1 byte
-#endif
 	} else if (2 == sscanf (arg, "%i/%i", &param[0], &param[1])) {
 		r->mask[0] = param[1] & 0xff;
 		r->match[0] = param[0] & 0xff;
@@ -322,8 +321,13 @@ static bool parse_replacement (Rule* r, unsigned int i, const char* arg)
 
 static bool parse_line_v1 (RuleSet* rs, const char* line)
 {
-	if (0 == strncmp (line, "forward-unmatched", 17)) {
+	if (0 == strcmp (line, "forward-unmatched")) {
 		rs->forward_unmatched = true;
+		return true;
+	}
+
+	if (0 == strcmp (line, "match-all")) {
+		rs->match_all = true;
 		return true;
 	}
 
@@ -551,6 +555,9 @@ filter_midimessage (MidiMap* self,
 			}
 			forge_midimessage (self, tme, msg, size);
 			matched = true;
+			if (!self->rules->match_all) {
+				break;
+			}
 		}
 	}
 
