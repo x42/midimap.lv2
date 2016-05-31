@@ -48,6 +48,7 @@ typedef struct {
 	LV2_URID midi_MidiEvent;
 	LV2_URID atom_URID;
 	LV2_URID atom_Path;
+	LV2_URID atom_String;
 	LV2_URID patch_Get;
 	LV2_URID patch_Set;
 	LV2_URID patch_property;
@@ -63,7 +64,7 @@ typedef struct {
 	uint8_t  mask[3];
 	uint8_t  match[3];
 
-	//uint32_t tx_len; // TODO allow to map length/type
+	uint32_t tx_len;
 	uint8_t  tx_mask[3];
 	uint8_t  tx_set[3];
 } Rule;
@@ -87,11 +88,11 @@ typedef struct {
 	LV2_Atom_Forge_Frame frame;
 
 	/* LV2 worker */
-  LV2_Worker_Schedule* schedule;
+	LV2_Worker_Schedule* schedule;
 
 	/* LV2 Output */
-  LV2_Log_Log* log;
-  LV2_Log_Logger logger;
+	LV2_Log_Log* log;
+	LV2_Log_Logger logger;
 
 	/* internal state */
 	bool inform_ui;
@@ -117,6 +118,7 @@ map_mem_uris (LV2_URID_Map* map, MidiMapURIs* uris)
 	uris->atom_Sequence      = map->map (map->handle, LV2_ATOM__Sequence);
 	uris->atom_URID          = map->map (map->handle, LV2_ATOM__URID);
 	uris->atom_Path          = map->map (map->handle, LV2_ATOM__Path);
+	uris->atom_String        = map->map (map->handle, LV2_ATOM__String);
 	uris->patch_Get          = map->map (map->handle, LV2_PATCH__Get);
 	uris->patch_Set          = map->map (map->handle, LV2_PATCH__Set);
 	uris->patch_property     = map->map (map->handle, LV2_PATCH__property);
@@ -163,9 +165,9 @@ parse_patch_msg (const MidiMapURIs* uris, const LV2_Atom_Object* obj)
 static void inform_ui (MidiMap* self)
 {
 	if (!self->cfg_file_path) { return; }
-	lv2_atom_forge_frame_time (&self->forge, 0);
 	const MidiMapURIs* uris = &self->uris;
 
+	lv2_atom_forge_frame_time (&self->forge, 0);
 	LV2_Atom_Forge_Frame frame;
 	lv2_atom_forge_object (&self->forge, &frame, 1, uris->patch_Set);
 	lv2_atom_forge_property_head (&self->forge, uris->patch_property, 0);
@@ -176,9 +178,64 @@ static void inform_ui (MidiMap* self)
 	lv2_atom_forge_pop (&self->forge, &frame);
 }
 
+static char* serialize_ruleset (RuleSet* rs)
+{
+	size_t allocated = 0;
+	size_t pos = 0;
+	int off = 0;
+	char* cfg = NULL;
+	char line[MAX_CFG_LINE_LEN];
+
+#define APPENDTOCFG                                  \
+  while ((allocated - pos) < off + 1) {              \
+    allocated += 1024;                               \
+    cfg = realloc (cfg, allocated * sizeof (char));  \
+    if (!cfg) { return NULL; }                       \
+  }                                                  \
+  memcpy (&cfg[pos], line, off + 1);                 \
+  pos += off;
+
+	if (!rs) {
+		return NULL;
+	}
+
+	off = sprintf (line, "midimap v1\n");
+	APPENDTOCFG;
+
+	if (rs->forward_unmatched) {
+		off = sprintf (line, "forward-unmatched\n");
+		APPENDTOCFG;
+	}
+	if (rs->match_all) {
+		off = sprintf (line, "match-all\n");
+		APPENDTOCFG;
+	}
+
+	// TODO add version and global flags.
+	const unsigned int rc = rs->count;
+	for (unsigned int i = 0; i < rc; ++i) {
+		Rule *r = &rs->rule[i];
+
+		off = 0;
+		for (uint32_t b = 0; b < r->len; ++b) {
+			off += sprintf (&line[off], "%02x/%02x ", r->match[b], r->mask[b]);
+		}
+		off += sprintf (&line[off], "|");
+		for (uint32_t b = 0; b < r->tx_len; ++b) {
+			off += sprintf (&line[off], " %02x/%02x", r->tx_set[b], r->tx_mask[b]);
+		}
+		off += sprintf (&line[off], "\n");
+
+		APPENDTOCFG;
+	}
+	return cfg;
+}
+
+
 static void clear_rule (Rule *r)
 {
 	r->len = 0;
+	r->tx_len = 0;
 	for (size_t b = 0; b < 3; ++b) {
 		r->mask[b]    = 0x00;
 		r->match[b]   = 0x00;
@@ -397,28 +454,39 @@ static bool parse_line_v1 (RuleSet* rs, const char* line)
 		}
 	}
 
+	r.tx_len = i;
+
 	free (fre);
-	if (i < 1 || i > 3 || in_match) {
-		return false;
-	}
-	if (i != r.len) {
-		// currently only same-length
+	if (r.tx_len < 1 || r.tx_len > 3 || r.len < 1 || r.len > 3 || in_match) {
 		return false;
 	}
 
 	add_rule (rs, &r);
-#ifndef NDEBUG
-	printf ("Rule [%d]", r.len);
-	for (uint32_t b = 0; b < r.len; ++b) {
-		printf (" %02x/%02x", r.match[b], r.mask[b]);
-	}
-	printf (" |");
-	for (uint32_t b = 0; b < r.len; ++b) {
-		printf (" %02x/%02x", r.tx_set[b], r.tx_mask[b]);
-	}
-	printf ("\n");
-#endif
 	return true;
+}
+
+static void
+parse_config_line (MidiMap*      self,
+                   const char*   line,
+                   unsigned int* cfg_version,
+                   unsigned int  lineno)
+{
+	if (0 == strncmp (line, "midimap v", 9) && strlen (line) > 9) {
+		*cfg_version = atoi (&line[9]);
+		return;
+	}
+
+	switch (*cfg_version) {
+		case 1:
+			if (!parse_line_v1 (self->state, line)) {
+				lv2_log_error (&self->logger, "MidiMap.lv2: Parser error on line %d\n", lineno);
+			}
+			break;
+		default:
+			lv2_log_error (&self->logger, "MidiMap.lv2: invalid version '%d' on config line %d\n",
+					*cfg_version, lineno);
+			break;
+	}
 }
 
 /** non-realtime function to read config,
@@ -430,15 +498,13 @@ parse_config_file (MidiMap* self, const char* fn)
 	assert (self->state == NULL);
 	FILE *f;
 	if (!fn) {
-		lv2_log_error (&self->logger, "MidiMap.lv2: invalid config file handle");
+		lv2_log_error (&self->logger, "MidiMap.lv2: invalid config file handle\n");
 	}
 	if (!(f = fopen (fn, "r"))) {
-		lv2_log_error (&self->logger, "MidiMap.lv2: cannot open config file '%s'", fn);
+		lv2_log_error (&self->logger, "MidiMap.lv2: cannot open config file '%s'\n", fn);
 		return;
 	}
-	lv2_log_note (&self->logger, "MidiMap.lv2: parsing config file '%s'", fn);
-
-	bool ok = true;
+	lv2_log_note (&self->logger, "MidiMap.lv2: parsing config file '%s'\n", fn);
 
 	self->state = calloc (1, sizeof (RuleSet));
 
@@ -448,7 +514,7 @@ parse_config_file (MidiMap* self, const char* fn)
 	while (fgets (line, MAX_CFG_LINE_LEN - 1, f) != NULL ) {
 		++lineno;
 		if (strlen (line) == MAX_CFG_LINE_LEN - 1) {
-			lv2_log_error (&self->logger, "MidiMap.lv2: Too long config line %d", lineno);
+			lv2_log_error (&self->logger, "MidiMap.lv2: Too long config line %d\n", lineno);
 			continue;
 		}
 		// strip trailing whitespace
@@ -460,31 +526,21 @@ parse_config_file (MidiMap* self, const char* fn)
 			continue;
 		}
 
-		if (0 == strncmp (line, "midimap v", 9) && strlen (line) > 9) {
-			cfg_version = atoi (&line[9]);
-			continue;
-		}
-
-		switch (cfg_version) {
-			case 1:
-				if (!parse_line_v1 (self->state, line)) {
-					lv2_log_error (&self->logger, "MidiMap.lv2: Parser error on line %d", lineno);
-				}
-				break;
-			default:
-				lv2_log_error (&self->logger, "MidiMap.lv2: invalid version '%d' on config line %d",
-						cfg_version, lineno);
-				break;
-		}
+		parse_config_line (self, line, &cfg_version, lineno);
 	}
 
 	fclose (f);
-	if (ok) {
+	if (cfg_version > 0) {
 		/* remember config file - for state */
 		free (self->cfg_file_path);
 		self->cfg_file_path = strdup (fn);
+#ifndef NDEBUG
+		char* dump = serialize_ruleset (self->state);
+		printf ("----\n%s\n----\n", dump);
+		free (dump);
+#endif
 	} else {
-		lv2_log_error (&self->logger, "MidiMap.lv2: error parsing config file");
+		lv2_log_error (&self->logger, "MidiMap.lv2: error parsing config file\n");
 		free (self->state);
 		self->state = NULL;
 	}
@@ -508,9 +564,9 @@ activate_config (MidiMap* self)
  */
 static void
 forge_midimessage (MidiMap* self,
-		uint32_t tme,
-		const uint8_t* const buffer,
-		uint32_t size)
+                   uint32_t tme,
+                   const uint8_t* const buffer,
+                   uint32_t size)
 {
 	LV2_Atom midiatom;
 	midiatom.type = self->uris.midi_MidiEvent;
@@ -527,9 +583,9 @@ forge_midimessage (MidiMap* self,
  */
 static void
 filter_midimessage (MidiMap* self,
-		uint32_t tme,
-		const uint8_t* const mmsg,
-		uint32_t size)
+                    uint32_t tme,
+                    const uint8_t* const mmsg,
+                    uint32_t size)
 {
 	if (!self->rules  || size > 3) {
 		/* just foward */
@@ -539,7 +595,8 @@ filter_midimessage (MidiMap* self,
 
 	bool matched = false;
 
-	// TODO use tree with masked status or a hash-table
+	// TODO if "match-all" is set, use tree with masked status-bit as
+	// 1st level hash-table
 	const unsigned int rc = self->rules->count;
 	for (unsigned int i = 0; i < rc; ++i) {
 		Rule *r = &self->rules->rule[i];
@@ -550,8 +607,12 @@ filter_midimessage (MidiMap* self,
 			 )
 		{
 			uint8_t msg[3];
-			for (uint32_t b = 0; b < size; ++b) {
+			uint32_t b;
+			for (b = 0; b < r->len; ++b) {
 				msg[b] = (mmsg[b] & r->tx_mask[b]) | r->tx_set[b];
+			}
+			for (;b < r->tx_len; ++b) {
+				msg[b] = r->tx_set[b];
 			}
 			forge_midimessage (self, tme, msg, size);
 			matched = true;
@@ -573,9 +634,9 @@ filter_midimessage (MidiMap* self,
 
 static LV2_Handle
 instantiate (const LV2_Descriptor*     descriptor,
-            double                    rate,
-            const char*               bundle_path,
-            const LV2_Feature* const* features)
+             double                    rate,
+             const char*               bundle_path,
+             const LV2_Feature* const* features)
 {
 	MidiMap* self = (MidiMap*)calloc (1, sizeof (MidiMap));
 
@@ -583,34 +644,35 @@ instantiate (const LV2_Descriptor*     descriptor,
 	for (i=0; features[i]; ++i) {
 		if (!strcmp (features[i]->URI, LV2_URID__map)) {
 			self->map = (LV2_URID_Map*)features[i]->data;
-    } else if (!strcmp (features[i]->URI, LV2_WORKER__schedule)) {
-      self->schedule = (LV2_Worker_Schedule*)features[i]->data;
-    } else if (!strcmp (features[i]->URI, LV2_LOG__log)) {
-      self->log = (LV2_Log_Log*)features[i]->data;
+		} else if (!strcmp (features[i]->URI, LV2_WORKER__schedule)) {
+			self->schedule = (LV2_Worker_Schedule*)features[i]->data;
+		} else if (!strcmp (features[i]->URI, LV2_LOG__log)) {
+			self->log = (LV2_Log_Log*)features[i]->data;
 		}
 	}
 
+	lv2_log_logger_init (&self->logger, self->map, self->log);
+
 	if (!self->map) {
-		fprintf (stderr, "MidiMap.lv2 error: Host does not support urid:map\n");
+		lv2_log_error (&self->logger, "MidiMap.lv2 error: Host does not support urid:map\n");
 		free (self);
 		return NULL;
 	}
 	if (!self->schedule) {
-		fprintf (stderr, "MidiMap.lv2 error: Host does not support worker:schedule\n");
+		lv2_log_error (&self->logger, "MidiMap.lv2 error: Host does not support worker:schedule\n");
 		free (self);
 		return NULL;
 	}
 
 	lv2_atom_forge_init (&self->forge, self->map);
 	map_mem_uris (self->map, &self->uris);
-  lv2_log_logger_init (&self->logger, self->map, self->log);
 	return (LV2_Handle)self;
 }
 
 static void
 connect_port (LV2_Handle instance,
-             uint32_t   port,
-             void*      data)
+              uint32_t   port,
+              void*      data)
 {
 	MidiMap* self = (MidiMap*)instance;
 
@@ -663,8 +725,6 @@ run (LV2_Handle instance, uint32_t n_samples)
 		ev = lv2_atom_sequence_next (ev);
 	}
 
-	/* close off atom sequence */
-	//lv2_atom_forge_pop (&self->forge, &self->frame);
 	/* report active rules */
 	*self->p_rulecount = self->rules ? self->rules->count : 0;
 }
@@ -708,7 +768,7 @@ work (LV2_Handle                  instance,
 		parse_config_file (self, fn);
 	}
 	respond (handle, 1, "");
-  return LV2_WORKER_SUCCESS;
+	return LV2_WORKER_SUCCESS;
 }
 
 static LV2_Worker_Status
@@ -734,22 +794,34 @@ save (LV2_Handle                instance,
       const LV2_Feature* const* features)
 {
 	MidiMap* self = (MidiMap*)instance;
-  LV2_State_Map_Path* map_path = NULL;
 
-  for (int i = 0; features[i]; ++i) {
-    if (!strcmp (features[i]->URI, LV2_STATE__mapPath)) {
-      map_path = (LV2_State_Map_Path*) features[i]->data;
-    }
-  }
+	char *cfg = serialize_ruleset (self->rules);
+	if (cfg) {
+		store(handle, self->uris.mem_state,
+				cfg, strlen(cfg) + 1,
+				self->uris.atom_String,
+				LV2_STATE_IS_POD | LV2_STATE_IS_PORTABLE);
+	}
+	free(cfg);
 
-  if (map_path && self->cfg_file_path) {
+#if 0 // remember file-name
+	LV2_State_Map_Path* map_path = NULL;
+
+	for (int i = 0; features[i]; ++i) {
+		if (!strcmp (features[i]->URI, LV2_STATE__mapPath)) {
+			map_path = (LV2_State_Map_Path*) features[i]->data;
+		}
+	}
+
+	if (map_path && self->cfg_file_path) {
 		char* apath = map_path->abstract_path (map_path->handle, self->cfg_file_path);
 		store (handle, self->uris.mem_cfgfile,
 				apath, strlen (apath) + 1,
 				self->uris.atom_Path,
 				LV2_STATE_IS_POD | LV2_STATE_IS_PORTABLE);
 	}
-  return LV2_STATE_SUCCESS;
+#endif
+	return LV2_STATE_SUCCESS;
 }
 
 static LV2_State_Status
@@ -765,22 +837,59 @@ restore (LV2_Handle                  instance,
 		return LV2_STATE_SUCCESS; // or  LV2_STATE_ERR_UNKNOWN ??
 	}
 
-  size_t   size;
-  uint32_t type;
-  uint32_t valflags;
-  const void* value;
+	size_t   size;
+	uint32_t type;
+	uint32_t valflags;
+	const void* value;
 
-	value = retrieve (handle, self->uris.mem_cfgfile, &size, &type, &valflags);
+	free (self->cfg_file_path);
+	self->cfg_file_path = NULL;
 
+	bool loaded = false;
+	value = retrieve (handle, self->uris.mem_state, &size, &type, &valflags);
 	if (value) {
-		const char* fn = (const char*)value;
-		parse_config_file (self, fn);
+		const char* cfg = (const char*)value;
+
+		const char* te;
+		const char* ts = cfg;
+		unsigned int cfg_version = 0;
+		self->state = calloc (1, sizeof (RuleSet));
+
+		while (ts && *ts && (te = strchr (ts, '\n'))) {
+			char line[MAX_CFG_LINE_LEN];
+			if (te - ts < 1023) {
+				memcpy (line, ts, te - ts);
+				line[te - ts]=0;
+				parse_config_line (self, line, &cfg_version, 0);
+			}
+			ts = te + 1;
+		}
+		if (cfg_version > 0) {
+			loaded = true;
+		} else {
+			free (self->state);
+			self->state = NULL;
+		}
+	}
+
+
+	if (!loaded) {
+		// try re-loading saved file (v0.1.0)
+		value = retrieve (handle, self->uris.mem_cfgfile, &size, &type, &valflags);
+		if (value) {
+			const char* fn = (const char*)value;
+			parse_config_file (self, fn);
+		}
+	}
+
+	if (self->state) {
 		activate_config (self);
 		free (self->state);
 		self->state = NULL;
 		self->inform_ui = true;
 	}
-  return LV2_STATE_SUCCESS;
+
+	return LV2_STATE_SUCCESS;
 }
 
 const void*
