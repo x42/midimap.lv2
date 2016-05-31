@@ -142,7 +142,7 @@ parse_patch_msg (const MidiMapURIs* uris, const LV2_Atom_Object* obj)
 		return NULL;
 	}
 
-	lv2_atom_object_get(obj, uris->patch_property, &property, 0);
+	lv2_atom_object_get (obj, uris->patch_property, &property, 0);
 	if (!property || property->type != uris->atom_URID) {
 		return NULL;
 	} else if (((LV2_Atom_URID*)property)->body != uris->mem_cfgfile) {
@@ -163,7 +163,7 @@ parse_patch_msg (const MidiMapURIs* uris, const LV2_Atom_Object* obj)
 static void inform_ui (MidiMap* self)
 {
 	if (!self->cfg_file_path) { return; }
-	lv2_atom_forge_frame_time(&self->forge, 0);
+	lv2_atom_forge_frame_time (&self->forge, 0);
 	const MidiMapURIs* uris = &self->uris;
 
 	LV2_Atom_Forge_Frame frame;
@@ -171,9 +171,9 @@ static void inform_ui (MidiMap* self)
 	lv2_atom_forge_property_head (&self->forge, uris->patch_property, 0);
 	lv2_atom_forge_urid (&self->forge, uris->mem_cfgfile);
 	lv2_atom_forge_property_head (&self->forge, uris->patch_value, 0);
-	lv2_atom_forge_path (&self->forge, self->cfg_file_path, strlen(self->cfg_file_path));
+	lv2_atom_forge_path (&self->forge, self->cfg_file_path, strlen (self->cfg_file_path));
 
-	lv2_atom_forge_pop(&self->forge, &frame);
+	lv2_atom_forge_pop (&self->forge, &frame);
 }
 
 static void clear_rule (Rule *r)
@@ -202,35 +202,35 @@ static void add_rule (RuleSet* rs, Rule *r)
 static bool parse_status (Rule* r, const char* arg)
 {
 	int param[2];
-	if        (!strcasecmp(arg, "ANY")) {
+	if        (!strcasecmp (arg, "ANY")) {
 		r->mask[0] = 0x00; r->match[0] = 0x00;
 	} else if (1 == sscanf (arg, "NOTEC%i", &param[0])) {
 		r->mask[0] = 0xef; r->match[0] = 0x80 | (param[0] & 0xf);
-	} else if (!strcasecmp(arg, "NOTE")) {
+	} else if (!strcasecmp (arg, "NOTE")) {
 		r->mask[0] = 0xe0; r->match[0] = 0x80;
-	} else if (!strcasecmp(arg, "NOTEOFF")) {
+	} else if (!strcasecmp (arg, "NOTEOFF")) {
 		r->mask[0] = 0xf0; r->match[0] = 0x80;
-	} else if (!strcasecmp(arg, "NOTEON")) {
+	} else if (!strcasecmp (arg, "NOTEON")) {
 		r->mask[0] = 0xf0; r->match[0] = 0x90;
-	} else if (!strcasecmp(arg, "Aftertouch")) {
+	} else if (!strcasecmp (arg, "Aftertouch")) {
 		r->mask[0] = 0xf0; r->match[0] = 0xa0;
-	} else if (!strcasecmp(arg, "CC")) {
+	} else if (!strcasecmp (arg, "CC")) {
 		r->mask[0] = 0xf0; r->match[0] = 0xb0;
-	} else if (!strcasecmp(arg, "Pitch")) {
+	} else if (!strcasecmp (arg, "Pitch")) {
 		r->mask[0] = 0xf0; r->match[0] = 0xe0;
-	} else if (!strcasecmp(arg, "PGM")) {
+	} else if (!strcasecmp (arg, "PGM")) {
 		r->mask[0] = 0xf0; r->match[0] = 0xc0;
-	} else if (!strcasecmp(arg, "ChanPressure")) {
+	} else if (!strcasecmp (arg, "ChanPressure")) {
 		r->mask[0] = 0xf0; r->match[0] = 0xd0; // Aftertouch, 2 bytes
-	} else if (!strcasecmp(arg, "Pos")) {
+	} else if (!strcasecmp (arg, "Pos")) {
 		r->mask[0] = 0xff; r->match[0] = 0xf2; // Song Position Pointer, 3 bytes
-	} else if (!strcasecmp(arg, "Song")) {
+	} else if (!strcasecmp (arg, "Song")) {
 		r->mask[0] = 0xff; r->match[0] = 0xf3; // Song select 2 bytes
-	} else if (!strcasecmp(arg, "Start")) {
+	} else if (!strcasecmp (arg, "Start")) {
 		r->mask[0] = 0xff; r->match[0] = 0xfa; // rt 1 byte
-	} else if (!strcasecmp(arg, "Cont")) {
+	} else if (!strcasecmp (arg, "Cont")) {
 		r->mask[0] = 0xff; r->match[0] = 0xfb; // rt 1 byte
-	} else if (!strcasecmp(arg, "Stop")) {
+	} else if (!strcasecmp (arg, "Stop")) {
 		r->mask[0] = 0xff; r->match[0] = 0xfc; // rt 1 byte
 	} else if (2 == sscanf (arg, "%i/%i", &param[0], &param[1])) {
 		r->mask[0] = param[1] & 0xff;
@@ -284,7 +284,7 @@ static uint8_t parse_note (const char* arg)
 static bool parse_match (Rule* r, unsigned int i, const char* arg)
 {
 	int param[2];
-	if (!strcasecmp(arg, "ANY")) {
+	if (!strcasecmp (arg, "ANY")) {
 		r->mask[i] = 0x00; r->match[i] = 0x00;
 	} else if (2 == sscanf (arg, "%i/%i", &param[0], &param[1])) {
 		r->mask[i] = param[1] & 0xff;
@@ -301,7 +301,7 @@ static bool parse_match (Rule* r, unsigned int i, const char* arg)
 static bool parse_replacement (Rule* r, unsigned int i, const char* arg)
 {
 	int param[2];
-	if (!strcasecmp(arg, "SAME")) {
+	if (!strcasecmp (arg, "SAME")) {
 		r->tx_mask[i] = 0xff;
 		r->tx_set[i] = 0x00;
 	} else if ((i == 0) && 1 == sscanf (arg, "CHN%i", &param[0])) {
@@ -337,13 +337,13 @@ static bool parse_line_v1 (RuleSet* rs, const char* line)
 	char *tmp, *fre, *prt;
 	int i = 0;
 	bool in_match = true;
-	tmp = fre = strdup(line);
-	for (prt = strtok(tmp, " "); prt; prt = strtok(NULL, " "), ++i) {
+	tmp = fre = strdup (line);
+	for (prt = strtok (tmp, " "); prt; prt = strtok (NULL, " "), ++i) {
 		bool rv;
 		if (prt[0] == '#') {
 			break;
 		}
-		if (0 == strcmp(prt, "|")) {
+		if (0 == strcmp (prt, "|")) {
 			if (i == 0 || !in_match) {
 				i = -1;
 				break;
@@ -432,7 +432,7 @@ parse_config_file (MidiMap* self, const char* fn)
 	if (!fn) {
 		lv2_log_error (&self->logger, "MidiMap.lv2: invalid config file handle");
 	}
-	if (!(f = fopen(fn, "r"))) {
+	if (!(f = fopen (fn, "r"))) {
 		lv2_log_error (&self->logger, "MidiMap.lv2: cannot open config file '%s'", fn);
 		return;
 	}
@@ -447,20 +447,20 @@ parse_config_file (MidiMap* self, const char* fn)
 	unsigned int cfg_version = 0;
 	while (fgets (line, MAX_CFG_LINE_LEN - 1, f) != NULL ) {
 		++lineno;
-		if (strlen(line) == MAX_CFG_LINE_LEN - 1) {
+		if (strlen (line) == MAX_CFG_LINE_LEN - 1) {
 			lv2_log_error (&self->logger, "MidiMap.lv2: Too long config line %d", lineno);
 			continue;
 		}
 		// strip trailing whitespace
-		while (strlen(line) > 0 && (line[strlen(line) - 1] == '\n' || line[strlen(line) - 1] == '\r' || line[strlen(line) - 1] == ' ' || line[strlen(line) - 1] == '\t')) {
-			line[strlen(line) - 1] = '\0';
+		while (strlen (line) > 0 && (line[strlen (line) - 1] == '\n' || line[strlen (line) - 1] == '\r' || line[strlen (line) - 1] == ' ' || line[strlen (line) - 1] == '\t')) {
+			line[strlen (line) - 1] = '\0';
 		}
 		// ignore comments and empty lines
-		if (strlen(line) == 0 || line[0] == '#') {
+		if (strlen (line) == 0 || line[0] == '#') {
 			continue;
 		}
 
-		if (0 == strncmp (line, "midimap v", 9) && strlen(line) > 9) {
+		if (0 == strncmp (line, "midimap v", 9) && strlen (line) > 9) {
 			cfg_version = atoi (&line[9]);
 			continue;
 		}
@@ -583,7 +583,7 @@ instantiate (const LV2_Descriptor*     descriptor,
 	for (i=0; features[i]; ++i) {
 		if (!strcmp (features[i]->URI, LV2_URID__map)) {
 			self->map = (LV2_URID_Map*)features[i]->data;
-    } else if (!strcmp(features[i]->URI, LV2_WORKER__schedule)) {
+    } else if (!strcmp (features[i]->URI, LV2_WORKER__schedule)) {
       self->schedule = (LV2_Worker_Schedule*)features[i]->data;
     } else if (!strcmp (features[i]->URI, LV2_LOG__log)) {
       self->log = (LV2_Log_Log*)features[i]->data;
@@ -657,7 +657,7 @@ run (LV2_Handle instance, uint32_t n_samples)
 			/* schedule loading config file */
 			const LV2_Atom_Object* obj = (LV2_Atom_Object*)&ev->body;
 			if (obj->body.otype == self->uris.patch_Set) {
-				self->schedule->schedule_work (self->schedule->handle, lv2_atom_total_size(&ev->body), &ev->body);
+				self->schedule->schedule_work (self->schedule->handle, lv2_atom_total_size (&ev->body), &ev->body);
 			}
 		}
 		ev = lv2_atom_sequence_next (ev);
@@ -684,11 +684,11 @@ cleanup (LV2_Handle instance)
  */
 
 static LV2_Worker_Status
-work(LV2_Handle                  instance,
-     LV2_Worker_Respond_Function respond,
-     LV2_Worker_Respond_Handle   handle,
-     uint32_t                    size,
-     const void*                 data)
+work (LV2_Handle                  instance,
+      LV2_Worker_Respond_Function respond,
+      LV2_Worker_Respond_Handle   handle,
+      uint32_t                    size,
+      const void*                 data)
 {
 	MidiMap* self = (MidiMap*)instance;
 
@@ -712,26 +712,26 @@ work(LV2_Handle                  instance,
 }
 
 static LV2_Worker_Status
-work_response(LV2_Handle  instance,
-              uint32_t    size,
-              const void* data)
+work_response (LV2_Handle  instance,
+               uint32_t    size,
+               const void* data)
 {
 	MidiMap* self = (MidiMap*)instance;
 	activate_config (self);
 	if (self->state) {
 		int d = 0x5780; // magic
-		self->schedule->schedule_work (self->schedule->handle, sizeof(int), &d);
+		self->schedule->schedule_work (self->schedule->handle, sizeof (int), &d);
 	}
 	self->inform_ui = true;
 	return LV2_WORKER_SUCCESS;
 }
 
 static LV2_State_Status
-save(LV2_Handle                instance,
-     LV2_State_Store_Function  store,
-     LV2_State_Handle          handle,
-     uint32_t                  flags,
-     const LV2_Feature* const* features)
+save (LV2_Handle                instance,
+      LV2_State_Store_Function  store,
+      LV2_State_Handle          handle,
+      uint32_t                  flags,
+      const LV2_Feature* const* features)
 {
 	MidiMap* self = (MidiMap*)instance;
   LV2_State_Map_Path* map_path = NULL;
@@ -745,7 +745,7 @@ save(LV2_Handle                instance,
   if (map_path && self->cfg_file_path) {
 		char* apath = map_path->abstract_path (map_path->handle, self->cfg_file_path);
 		store (handle, self->uris.mem_cfgfile,
-				apath, strlen(apath) + 1,
+				apath, strlen (apath) + 1,
 				self->uris.atom_Path,
 				LV2_STATE_IS_POD | LV2_STATE_IS_PORTABLE);
 	}
@@ -753,11 +753,11 @@ save(LV2_Handle                instance,
 }
 
 static LV2_State_Status
-restore(LV2_Handle                  instance,
-        LV2_State_Retrieve_Function retrieve,
-        LV2_State_Handle            handle,
-        uint32_t                    flags,
-        const LV2_Feature* const*   features)
+restore (LV2_Handle                  instance,
+         LV2_State_Retrieve_Function retrieve,
+         LV2_State_Handle            handle,
+         uint32_t                    flags,
+         const LV2_Feature* const*   features)
 {
 	MidiMap* self = (MidiMap*)instance;
 	if (self->state) {
