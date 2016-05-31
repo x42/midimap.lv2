@@ -275,7 +275,7 @@ static uint8_t parse_note (const char* arg)
 	int octave = atoi (&arg[pos]);
 
 	// c-2 == 0
-	int note = (octave + 2) * 12 + key;
+	int note = (octave + 1) * 12 + key;
 	if (note >= 0 && note <= 127) {
 		return note;
 	}
