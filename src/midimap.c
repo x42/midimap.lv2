@@ -218,11 +218,11 @@ static char* serialize_ruleset (RuleSet* rs)
 
 		off = 0;
 		for (uint32_t b = 0; b < r->len; ++b) {
-			off += sprintf (&line[off], "%02x/%02x ", r->match[b], r->mask[b]);
+			off += sprintf (&line[off], "0x%02x/0x%02x ", r->match[b], r->mask[b]);
 		}
 		off += sprintf (&line[off], "|");
 		for (uint32_t b = 0; b < r->tx_len; ++b) {
-			off += sprintf (&line[off], " %02x/%02x", r->tx_set[b], r->tx_mask[b]);
+			off += sprintf (&line[off], " 0x%02x/0x%02x", r->tx_set[b], r->tx_mask[b]);
 		}
 		off += sprintf (&line[off], "\n");
 
