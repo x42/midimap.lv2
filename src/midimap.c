@@ -602,7 +602,7 @@ filter_midimessage (MidiMap* self,
 	const unsigned int rc = self->rules->count;
 	for (unsigned int i = 0; i < rc; ++i) {
 		Rule *r = &self->rules->rule[i];
-		uint8_t msg[3];
+		uint8_t msg[MAX_MSG];
 		uint32_t b;
 
 		if ((r->len != size)) {
