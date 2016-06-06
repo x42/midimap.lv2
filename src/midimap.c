@@ -58,15 +58,17 @@ typedef struct {
 	LV2_URID mem_cfgfile;
 } MidiMapURIs;
 
+#define MAX_MSG 32
 
 typedef struct {
 	uint32_t len;
-	uint8_t  mask[3];
-	uint8_t  match[3];
+	uint8_t  mask[MAX_MSG];
+	uint8_t  match[MAX_MSG];
 
 	uint32_t tx_len;
-	uint8_t  tx_mask[3];
-	uint8_t  tx_set[3];
+	uint8_t  tx_mask[MAX_MSG];
+	uint8_t  tx_set[MAX_MSG];
+	// TODO match comparator, tx operator
 } Rule;
 
 typedef struct {
@@ -410,7 +412,7 @@ static bool parse_line_v1 (RuleSet* rs, const char* line)
 			i = -1; // continue bumps it
 			continue;
 		}
-		if (i >= 3) {
+		if (i >= MAX_MSG) {
 			i = -1;
 			break;
 		}
@@ -457,7 +459,7 @@ static bool parse_line_v1 (RuleSet* rs, const char* line)
 	r.tx_len = i;
 
 	free (fre);
-	if (r.tx_len < 1 || r.tx_len > 3 || r.len < 1 || r.len > 3 || in_match) {
+	if (r.tx_len < 1 || r.tx_len > MAX_MSG || r.len < 1 || r.len > MAX_MSG || in_match) {
 		return false;
 	}
 
@@ -585,9 +587,9 @@ static void
 filter_midimessage (MidiMap* self,
                     uint32_t tme,
                     const uint8_t* const mmsg,
-                    uint32_t size)
+                    const uint32_t size)
 {
-	if (!self->rules  || size > 3) {
+	if (!self->rules || size > MAX_MSG) {
 		/* just foward */
 		forge_midimessage (self, tme, mmsg, size);
 		return;
@@ -600,25 +602,36 @@ filter_midimessage (MidiMap* self,
 	const unsigned int rc = self->rules->count;
 	for (unsigned int i = 0; i < rc; ++i) {
 		Rule *r = &self->rules->rule[i];
-		if (   (r->len == size)
-				&& (            (mmsg[0] & r->mask[0]) == r->match[0])
-				&& (size < 2 || (mmsg[1] & r->mask[1]) == r->match[1])
-				&& (size < 3 || (mmsg[2] & r->mask[2]) == r->match[2])
-			 )
-		{
-			uint8_t msg[3];
-			uint32_t b;
-			for (b = 0; b < r->len; ++b) {
-				msg[b] = (mmsg[b] & r->tx_mask[b]) | r->tx_set[b];
+		uint8_t msg[3];
+		uint32_t b;
+
+		if ((r->len != size)) {
+			continue;
+		}
+		bool match = true;
+		for (b = 0; b < size && match; ++b) {
+			// TODO also allow >= or <= comparators
+			if ((mmsg[1] & r->mask[1]) != r->match[1]) {
+				match = false;
 			}
-			for (;b < r->tx_len; ++b) {
-				msg[b] = r->tx_set[b];
-			}
-			forge_midimessage (self, tme, msg, size);
-			matched = true;
-			if (!self->rules->match_all) {
-				break;
-			}
+		}
+		if (!match) {
+			continue;
+		}
+
+		for (b = 0; b < r->len; ++b) {
+			// TODO also allow += and *= operators
+			// and map bytes ?
+			msg[b] = (mmsg[b] & r->tx_mask[b]) | r->tx_set[b];
+		}
+		for (;b < r->tx_len; ++b) {
+			msg[b] = r->tx_set[b];
+		}
+
+		forge_midimessage (self, tme, msg, r->tx_len);
+		matched = true;
+		if (!self->rules->match_all) {
+			break;
 		}
 	}
 
