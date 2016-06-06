@@ -269,7 +269,7 @@ static bool parse_status (Rule* r, const char* arg)
 		r->mask[0] = 0xf0; r->match[0] = 0x80;
 	} else if (!strcasecmp (arg, "NOTEON")) {
 		r->mask[0] = 0xf0; r->match[0] = 0x90;
-	} else if (!strcasecmp (arg, "Aftertouch")) {
+	} else if (!strcasecmp (arg, "KeyPressure")) {
 		r->mask[0] = 0xf0; r->match[0] = 0xa0;
 	} else if (!strcasecmp (arg, "CC")) {
 		r->mask[0] = 0xf0; r->match[0] = 0xb0;
@@ -330,7 +330,7 @@ static uint8_t parse_note (const char* arg)
 
 	int octave = atoi (&arg[pos]);
 
-	// c-2 == 0
+	// c-1 == 0
 	int note = (octave + 1) * 12 + key;
 	if (note >= 0 && note <= 127) {
 		return note;
