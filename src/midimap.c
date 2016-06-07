@@ -439,7 +439,7 @@ static bool parse_line_v1 (RuleSet* rs, const char* line)
 				case 1:
 					r.tx_set[i] = parse_note (prt); // TODO IFF note-status..
 					if (r.tx_set[i] < 128) {
-						r.tx_mask[i] = 0x7f;
+						r.tx_mask[i] = 0x00;
 						rv = true;
 						break;
 					}
