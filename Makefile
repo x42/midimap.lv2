@@ -67,7 +67,7 @@ override CFLAGS += `pkg-config --cflags lv2`
 # build target definitions
 default: all
 
-all: $(BUILDDIR)manifest.ttl $(BUILDDIR)$(LV2NAME).ttl $(targets)
+all: $(BUILDDIR)manifest.ttl $(BUILDDIR)presets.ttl $(BUILDDIR)$(LV2NAME).ttl $(targets)
 
 lv2syms:
 	echo "_lv2_descriptor" > lv2syms
@@ -76,6 +76,19 @@ $(BUILDDIR)manifest.ttl: lv2ttl/manifest.ttl.in
 	@mkdir -p $(BUILDDIR)
 	sed "s/@LV2NAME@/$(LV2NAME)/;s/@LIB_EXT@/$(LIB_EXT)/" \
 	  lv2ttl/manifest.ttl.in > $(BUILDDIR)manifest.ttl
+	@for file in presets/*.ttl; do \
+		echo "" \
+			>> $(BUILDDIR)manifest.ttl;\
+		head -n 3 $$file \
+			>> $(BUILDDIR)manifest.ttl; \
+		echo "\trdfs:seeAlso <presets.ttl> ." \
+			>> $(BUILDDIR)manifest.ttl;\
+		done
+
+$(BUILDDIR)presets.ttl: lv2ttl/presets.ttl.in presets/*.ttl
+	@mkdir -p $(BUILDDIR)
+	cat lv2ttl/presets.ttl.in > $(BUILDDIR)presets.ttl
+	cat presets/*.ttl >> $(BUILDDIR)presets.ttl
 
 $(BUILDDIR)$(LV2NAME).ttl: lv2ttl/$(LV2NAME).ttl.in
 	@mkdir -p $(BUILDDIR)
@@ -94,16 +107,17 @@ $(BUILDDIR)$(LV2NAME)$(LIB_EXT): src/$(LV2NAME).c
 install: all
 	install -d $(DESTDIR)$(LV2DIR)/$(BUNDLE)
 	install -m755 $(BUILDDIR)$(LV2NAME)$(LIB_EXT) $(DESTDIR)$(LV2DIR)/$(BUNDLE)
-	install -m644 $(BUILDDIR)manifest.ttl $(BUILDDIR)$(LV2NAME).ttl $(DESTDIR)$(LV2DIR)/$(BUNDLE)
+	install -m644 $(BUILDDIR)manifest.ttl $(BUILDDIR)$(LV2NAME).ttl $(BUILDDIR)presets.ttl $(DESTDIR)$(LV2DIR)/$(BUNDLE)
 
 uninstall:
 	rm -f $(DESTDIR)$(LV2DIR)/$(BUNDLE)/manifest.ttl
+	rm -f $(DESTDIR)$(LV2DIR)/$(BUNDLE)/presets.ttl
 	rm -f $(DESTDIR)$(LV2DIR)/$(BUNDLE)/$(LV2NAME).ttl
 	rm -f $(DESTDIR)$(LV2DIR)/$(BUNDLE)/$(LV2NAME)$(LIB_EXT)
 	-rmdir $(DESTDIR)$(LV2DIR)/$(BUNDLE)
 
 clean:
-	rm -f $(BUILDDIR)manifest.ttl $(BUILDDIR)$(LV2NAME).ttl $(BUILDDIR)$(LV2NAME)$(LIB_EXT) lv2syms
+	rm -f $(BUILDDIR)manifest.ttl $(BUILDDIR)presets.ttl $(BUILDDIR)$(LV2NAME).ttl $(BUILDDIR)$(LV2NAME)$(LIB_EXT) lv2syms
 	-test -d $(BUILDDIR) && rmdir $(BUILDDIR) || true
 
 .PHONY: clean all install uninstall

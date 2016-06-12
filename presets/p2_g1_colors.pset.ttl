@@ -1,0 +1,158 @@
+mmpset:p2_BEADGBEA_colors
+	a pset:Preset ;
+	lv2:appliesTo <http://gareus.org/oss/lv2/midimap> ;
+
+# Author: Jacques Herry
+# guitar regular tuning for 8 string, 1 midi channel per string
+# pads color configuration file for Push 2
+
+	rdfs:label "push2 8-String Guitar - Colors" ;
+	state:state [
+		<http://gareus.org/oss/lv2/midimap#state> """midimap v1
+match-all
+
+CC 50 127 | 0x90/0x0f 36 20
+CC 50 127 | 0x90/0x0f 37 127
+CC 50 127 | 0x90/0x0f 38 0
+CC 50 127 | 0x90/0x0f 39 29
+CC 50 127 | 0x90/0x0f 40 0
+CC 50 127 | 0x90/0x0f 41 7
+CC 50 127 | 0x90/0x0f 42 126
+CC 50 127 | 0x90/0x0f 43 0
+CC 50 127 | 0x90/0x0f 44 7
+CC 50 127 | 0x90/0x0f 45 126
+CC 50 127 | 0x90/0x0f 46 0
+CC 50 127 | 0x90/0x0f 47 46
+CC 50 127 | 0x90/0x0f 48 0
+CC 50 127 | 0x90/0x0f 49 125
+CC 50 127 | 0x90/0x0f 50 0
+CC 50 127 | 0x90/0x0f 51 20
+CC 50 127 | 0x90/0x0f 52 125
+CC 50 127 | 0x90/0x0f 53 0
+CC 50 127 | 0x90/0x0f 54 20
+CC 50 127 | 0x90/0x0f 55 127
+CC 50 127 | 0x90/0x0f 56 0
+CC 50 127 | 0x90/0x0f 57 29
+CC 50 127 | 0x90/0x0f 58 0
+CC 50 127 | 0x90/0x0f 59 7
+CC 50 127 | 0x90/0x0f 60 29
+CC 50 127 | 0x90/0x0f 61 0
+CC 50 127 | 0x90/0x0f 62 7
+CC 50 127 | 0x90/0x0f 63 126
+CC 50 127 | 0x90/0x0f 64 0
+CC 50 127 | 0x90/0x0f 65 46
+CC 50 127 | 0x90/0x0f 66 0
+CC 50 127 | 0x90/0x0f 67 125
+CC 50 127 | 0x90/0x0f 68 46
+CC 50 127 | 0x90/0x0f 69 0
+CC 50 127 | 0x90/0x0f 70 125
+CC 50 127 | 0x90/0x0f 71 0
+CC 50 127 | 0x90/0x0f 72 20
+CC 50 127 | 0x90/0x0f 73 127
+CC 50 127 | 0x90/0x0f 74 0
+CC 50 127 | 0x90/0x0f 75 29
+CC 50 127 | 0x90/0x0f 76 20
+CC 50 127 | 0x90/0x0f 77 127
+CC 50 127 | 0x90/0x0f 78 0
+CC 50 127 | 0x90/0x0f 79 29
+CC 50 127 | 0x90/0x0f 80 0
+CC 50 127 | 0x90/0x0f 81 7
+CC 50 127 | 0x90/0x0f 82 126
+CC 50 127 | 0x90/0x0f 83 0
+CC 50 127 | 0x90/0x0f 84 7
+CC 50 127 | 0x90/0x0f 85 126
+CC 50 127 | 0x90/0x0f 86 0
+CC 50 127 | 0x90/0x0f 87 46
+CC 50 127 | 0x90/0x0f 88 0
+CC 50 127 | 0x90/0x0f 89 125
+CC 50 127 | 0x90/0x0f 90 0
+CC 50 127 | 0x90/0x0f 91 20
+CC 50 127 | 0x90/0x0f 92 125
+CC 50 127 | 0x90/0x0f 93 0
+CC 50 127 | 0x90/0x0f 94 20
+CC 50 127 | 0x90/0x0f 95 127
+CC 50 127 | 0x90/0x0f 96 0
+CC 50 127 | 0x90/0x0f 97 29
+CC 50 127 | 0x90/0x0f 98 0
+CC 50 127 | 0x90/0x0f 99 7
+
+##allume le pb
+CC 50 127 | SAME 88 127
+
+## va et vient des boutons
+CC 87 127 | SAME 87 0
+
+CC 87 127 | SAME 88 0
+
+CC 87 127 | SAME 116 0
+
+CC 87 127 | SAME 117 0
+
+CC 87 127 | SAME 35 0
+
+CC 87 127 | SAME SAME 127
+
+CC 88 127 | SAME 87 0
+
+CC 88 127 | SAME 88 0
+
+CC 88 127 | SAME 116 0
+
+CC 88 127 | SAME 117 0
+
+CC 88 127 | SAME 35 0
+
+CC 88 127 | SAME SAME 127
+
+CC 116 127 | SAME 87 0
+
+CC 116 127 | SAME 88 0
+
+CC 116 127 | SAME 116 0
+
+CC 116 127 | SAME 117 0
+
+CC 116 127 | SAME 35 0
+
+CC 116 127 | SAME SAME 127
+
+CC 117 127 | SAME 87 0
+
+CC 117 127 | SAME 88 0
+
+CC 117 127 | SAME 116 0
+
+CC 117 127 | SAME 117 0
+
+CC 117 127 | SAME 35 0
+
+CC 117 127 | SAME SAME 127
+
+CC 35 127 | SAME 87 0
+
+CC 35 127 | SAME 88 0
+
+CC 35 127 | SAME 116 0
+
+CC 35 127 | SAME 117 0
+
+CC 35 127 | SAME 35 0
+
+CC 35 127 | SAME SAME 127
+
+##pb fixed center (button New)
+CC 87 127 | 0xF0 0x00 0x21 0x1D 0x01 0x01 0x17 80 0xF7
+
+##pb auto center (button Duplicate)
+CC 88 127 | 0xF0 0x00 0x21 0x1D 0x01 0x01 0x17 120 0xF7
+
+##mod auto bottom (button Quantize)
+CC 116 127 | 0xF0 0x00 0x21 0x1D 0x01 0x01 0x17 44 0xF7
+
+##mod auto center (button Double loop)
+CC 117 127 | 0xF0 0x00 0x21 0x1D 0x01 0x01 0x17 124 0xF7
+
+##mod fixed bottom (button Convert)
+CC 35 127 | 0xF0 0x00 0x21 0x1D 0x01 0x01 0x17 4 0xF7
+"""
+	] .
