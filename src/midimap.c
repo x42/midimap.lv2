@@ -26,6 +26,7 @@
 
 #include <lv2/lv2plug.in/ns/lv2core/lv2.h>
 #include <lv2/lv2plug.in/ns/ext/atom/atom.h>
+#include "lv2/lv2plug.in/ns/ext/time/time.h"
 #include <lv2/lv2plug.in/ns/ext/atom/forge.h>
 #include <lv2/lv2plug.in/ns/ext/urid/urid.h>
 #include <lv2/lv2plug.in/ns/ext/midi/midi.h>
@@ -49,6 +50,16 @@ typedef struct {
 	LV2_URID atom_URID;
 	LV2_URID atom_Path;
 	LV2_URID atom_String;
+	LV2_URID atom_Float;
+	LV2_URID atom_Int;
+	LV2_URID atom_Long;
+	LV2_URID atom_eventTransfer;
+	LV2_URID time_Position;
+	LV2_URID time_barBeat;
+	LV2_URID time_beatsPerMinute;
+	LV2_URID time_speed;
+	LV2_URID time_frame;
+
 	LV2_URID patch_Get;
 	LV2_URID patch_Set;
 	LV2_URID patch_property;
@@ -70,6 +81,18 @@ typedef struct {
 	uint8_t  tx_set[MAX_MSG];
 	// TODO match comparator, tx operator
 } Rule;
+
+#if 0 // TODO, generators/sequencer
+typedef struct {
+	uint64_t  offset;
+	uint64_t  repeat;
+	// TODO unit for repeat  sec/samples, bar/beat
+	// TODO alignment: transport, absolute
+
+	uint32_t tx_len;
+	uint8_t  tx_set[MAX_MSG];
+} Gen;
+#endif
 
 typedef struct {
 	unsigned int count;
@@ -96,7 +119,21 @@ typedef struct {
 	LV2_Log_Log* log;
 	LV2_Log_Logger logger;
 
+	/* host transport */
+	float transport_speed;
+	long  transport_frame;
+	bool  transport_rolling;
+
+	bool     bpm_avail;
+	float    bpm;
+	bool     bbt_avail;
+	double   bbt;
+
 	/* internal state */
+	double sample_rate;
+	uint64_t monotonic_cnt;
+	uint64_t play_cnt;
+
 	bool inform_ui;
 	char* cfg_file_path;
 
@@ -114,20 +151,30 @@ typedef struct {
 static void
 map_mem_uris (LV2_URID_Map* map, MidiMapURIs* uris)
 {
-	uris->atom_Blank         = map->map (map->handle, LV2_ATOM__Blank);
-	uris->atom_Object        = map->map (map->handle, LV2_ATOM__Object);
-	uris->midi_MidiEvent     = map->map (map->handle, LV2_MIDI__MidiEvent);
-	uris->atom_Sequence      = map->map (map->handle, LV2_ATOM__Sequence);
-	uris->atom_URID          = map->map (map->handle, LV2_ATOM__URID);
-	uris->atom_Path          = map->map (map->handle, LV2_ATOM__Path);
-	uris->atom_String        = map->map (map->handle, LV2_ATOM__String);
-	uris->patch_Get          = map->map (map->handle, LV2_PATCH__Get);
-	uris->patch_Set          = map->map (map->handle, LV2_PATCH__Set);
-	uris->patch_property     = map->map (map->handle, LV2_PATCH__property);
-	uris->patch_value        = map->map (map->handle, LV2_PATCH__value);
+	uris->atom_Blank          = map->map (map->handle, LV2_ATOM__Blank);
+	uris->atom_Object         = map->map (map->handle, LV2_ATOM__Object);
+	uris->midi_MidiEvent      = map->map (map->handle, LV2_MIDI__MidiEvent);
+	uris->atom_Sequence       = map->map (map->handle, LV2_ATOM__Sequence);
+	uris->atom_URID           = map->map (map->handle, LV2_ATOM__URID);
+	uris->atom_Path           = map->map (map->handle, LV2_ATOM__Path);
+	uris->atom_String         = map->map (map->handle, LV2_ATOM__String);
+	uris->atom_Float          = map->map (map->handle, LV2_ATOM__Float);
+	uris->atom_Int            = map->map (map->handle, LV2_ATOM__Int);
+	uris->atom_Long           = map->map (map->handle, LV2_ATOM__Long);
+	uris->atom_eventTransfer  = map->map (map->handle, LV2_ATOM__eventTransfer);
+	uris->time_Position       = map->map (map->handle, LV2_TIME__Position);
+	uris->time_barBeat        = map->map (map->handle, LV2_TIME__barBeat);
+	uris->time_beatsPerMinute = map->map (map->handle, LV2_TIME__beatsPerMinute);
+	uris->time_speed          = map->map (map->handle, LV2_TIME__speed);
+	uris->time_frame          = map->map (map->handle, LV2_TIME__frame);
 
-	uris->mem_state          = map->map (map->handle, MEM_URI "#state");
-	uris->mem_cfgfile        = map->map (map->handle, MEM_URI "#cfgfile");
+	uris->patch_Get           = map->map (map->handle, LV2_PATCH__Get);
+	uris->patch_Set           = map->map (map->handle, LV2_PATCH__Set);
+	uris->patch_property      = map->map (map->handle, LV2_PATCH__property);
+	uris->patch_value         = map->map (map->handle, LV2_PATCH__value);
+
+	uris->mem_state           = map->map (map->handle, MEM_URI "#state");
+	uris->mem_cfgfile         = map->map (map->handle, MEM_URI "#cfgfile");
 }
 
 /**
@@ -640,6 +687,63 @@ filter_midimessage (MidiMap* self,
 	}
 }
 
+static void
+generate_until (MidiMap* self, uint32_t start, uint32_t end)
+{
+	if (start == end) {
+		return;
+	}
+	// TODO...
+}
+
+
+
+/*******************************************************************************
+ * parse LV2 time extension data
+ */
+static void
+parse_host_transport (MidiMap* self, const LV2_Atom_Object* obj)
+{
+	LV2_Atom* beat  = NULL;
+	LV2_Atom* bpm   = NULL;
+	LV2_Atom* speed = NULL;
+	LV2_Atom* frame = NULL;
+
+	lv2_atom_object_get(obj,
+	                    self->uris.time_barBeat, &beat,
+	                    self->uris.time_beatsPerMinute, &bpm,
+	                    self->uris.time_speed, &speed,
+	                    self->uris.time_frame, &frame,
+	                    NULL);
+
+
+	if (bpm && bpm->type == self->uris.atom_Float) {
+		// Tempo changed, update BPM
+		self->bpm = ((LV2_Atom_Float*)bpm)->body;
+		self->bpm_avail = true;
+	} else {
+		self->bpm_avail = false;
+	}
+
+	if (speed && speed->type == self->uris.atom_Float) {
+		self->transport_speed = ((LV2_Atom_Float*)speed)->body;
+		self->transport_rolling = (self->transport_speed != 0);
+	}
+	if (frame && speed->type == self->uris.atom_Long) {
+		self->transport_frame = ((LV2_Atom_Long*)speed)->body;
+	}
+	if (beat && beat->type == self->uris.atom_Float) {
+		self->bbt       = ((LV2_Atom_Float*)beat)->body;
+		self->bbt_avail = true;
+	} else {
+		self->bbt_avail = false;
+	}
+
+	if (!self->transport_rolling) {
+		self->play_cnt = 0;
+	}
+}
+
 
 /* *****************************************************************************
  * LV2 Plugin
@@ -677,6 +781,7 @@ instantiate (const LV2_Descriptor*     descriptor,
 		return NULL;
 	}
 
+	self->sample_rate = rate;
 	lv2_atom_forge_init (&self->forge, self->map);
 	map_mem_uris (self->map, &self->uris);
 	return (LV2_Handle)self;
@@ -716,26 +821,50 @@ run (LV2_Handle instance, uint32_t n_samples)
 	lv2_atom_forge_set_buffer (&self->forge, (uint8_t*)self->midiout, capacity);
 	lv2_atom_forge_sequence_head (&self->forge, &self->frame, 0);
 
+	/* update internal frame counter (host only sends update on change) */
+	if (self->transport_rolling) {
+		self->transport_frame += n_samples * self->transport_speed;
+	} else {
+		self->play_cnt = 0;
+	}
+
 	/* inform the GUI */
 	if (self->inform_ui) {
 		self->inform_ui = false;
 		inform_ui (self);
 	}
 
+	uint32_t gen_n_samples = 0;
+
 	/* Process incoming midi events */
 	LV2_Atom_Event* ev = lv2_atom_sequence_begin (&(self->midiin)->body);
 	while (!lv2_atom_sequence_is_end (&(self->midiin)->body, (self->midiin)->atom.size, ev)) {
 		if (ev->body.type == self->uris.midi_MidiEvent) {
+			/* generate signals until current time */
+			generate_until (self, gen_n_samples, ev->time.frames);
+			gen_n_samples = ev->time.frames;
 			/* process midi event */
 			filter_midimessage (self, ev->time.frames, (uint8_t*)(ev+1), ev->body.size);
-		} else {
+		} else if (ev->body.type == self->uris.atom_Blank || ev->body.type == self->uris.atom_Object) {
 			/* schedule loading config file */
 			const LV2_Atom_Object* obj = (LV2_Atom_Object*)&ev->body;
-			if (obj->body.otype == self->uris.patch_Set) {
+			if (obj->body.otype == self->uris.time_Position) {
+				parse_host_transport (self, obj);
+			}
+			else if (obj->body.otype == self->uris.patch_Set) {
 				self->schedule->schedule_work (self->schedule->handle, lv2_atom_total_size (&ev->body), &ev->body);
 			}
 		}
 		ev = lv2_atom_sequence_next (ev);
+	}
+
+	/* generate remaining events */
+	generate_until (self, gen_n_samples, n_samples);
+
+	/* keep track of position (for generator) */
+	self->monotonic_cnt += n_samples;
+	if (self->transport_rolling) {
+		self->play_cnt += n_samples;
 	}
 
 	/* report active rules */
