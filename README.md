@@ -7,7 +7,7 @@ lookup-table, which is loaded from a config file.
 Install
 -------
 
-Compiling fil4 requires the LV2 SDK, gnu-make, and a c-compiler.
+Compiling midimap.lv2 requires the LV2 SDK, gnu-make, and a c-compiler.
 
 ```bash
   git clone git://github.com/x42/midimap.lv2.git
