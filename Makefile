@@ -81,7 +81,7 @@ $(BUILDDIR)manifest.ttl: lv2ttl/manifest.ttl.in
 			>> $(BUILDDIR)manifest.ttl;\
 		head -n 3 $$file \
 			>> $(BUILDDIR)manifest.ttl; \
-		echo "\trdfs:seeAlso <presets.ttl> ." \
+		echo "rdfs:seeAlso <presets.ttl> ." \
 			>> $(BUILDDIR)manifest.ttl;\
 		done
 
