@@ -658,7 +658,7 @@ filter_midimessage (MidiMap* self,
 		bool match = true;
 		for (b = 0; b < size && match; ++b) {
 			// TODO also allow >= or <= comparators
-			if ((mmsg[1] & r->mask[1]) != r->match[1]) {
+			if ((mmsg[b] & r->mask[b]) != r->match[b]) {
 				match = false;
 			}
 		}
