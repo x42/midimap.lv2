@@ -120,9 +120,9 @@ typedef struct {
 	LV2_Log_Logger logger;
 
 	/* host transport */
-	float transport_speed;
-	long  transport_frame;
-	bool  transport_rolling;
+	float    transport_speed;
+	int64_t  transport_frame;
+	bool     transport_rolling;
 
 	bool     bpm_avail;
 	float    bpm;
