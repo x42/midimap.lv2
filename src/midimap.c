@@ -1014,13 +1014,23 @@ restore (LV2_Handle                  instance,
 		}
 	}
 
+	LV2_State_Map_Path* map_path = NULL;
 
-	if (!loaded) {
+	for (int i = 0; features[i]; ++i) {
+		if (!strcmp (features[i]->URI, LV2_STATE__mapPath)) {
+			map_path = (LV2_State_Map_Path*) features[i]->data;
+		}
+	}
+
+	if (!loaded && map_path) {
 		// try re-loading saved file (v0.1.0)
 		value = retrieve (handle, self->uris.mem_cfgfile, &size, &type, &valflags);
 		if (value) {
-			const char* fn = (const char*)value;
-			parse_config_file (self, fn);
+			char* path = map_path->absolute_path (map_path->handle, (const char*)value);
+			parse_config_file (self, path);
+#ifndef _WIN32 // https://github.com/drobilla/lilv/issues/14
+			free (path);
+#endif
 		}
 	}
 
