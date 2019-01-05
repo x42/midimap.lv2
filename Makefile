@@ -9,6 +9,7 @@ PREFIX ?= /usr/local
 CFLAGS ?= $(OPTIMIZATIONS) -Wall
 LIBDIR ?= lib
 
+PKG_CONFIG?=pkg-config
 STRIP?=strip
 STRIPFLAGS?=-s
 
@@ -52,17 +53,17 @@ LV2VERSION=$(midimap_VERSION)
 include git2lv2.mk
 
 # check for build-dependencies
-ifeq ($(shell pkg-config --exists lv2 || echo no), no)
+ifeq ($(shell $(PKG_CONFIG) --exists lv2 || echo no), no)
   $(error "LV2 SDK was not found")
 endif
 
 # check for lv2_atom_forge_object  new in 1.8.1 deprecates lv2_atom_forge_blank
-ifeq ($(shell pkg-config --atleast-version=1.8.1 lv2 && echo yes), yes)
+ifeq ($(shell $(PKG_CONFIG) --atleast-version=1.8.1 lv2 && echo yes), yes)
   override CFLAGS += -DHAVE_LV2_1_8
 endif
 
 override CFLAGS += -fPIC -std=c99
-override CFLAGS += `pkg-config --cflags lv2`
+override CFLAGS += `$(PKG_CONFIG) --cflags lv2`
 
 # build target definitions
 default: all
