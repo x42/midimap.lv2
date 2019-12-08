@@ -947,12 +947,20 @@ save (LV2_Handle                instance,
 	free(cfg);
 
 #if 0 // remember file-name
-	LV2_State_Map_Path* map_path = NULL;
+	LV2_State_Map_Path*  map_path = NULL;
+#ifdef LV2_STATE__freePath
+	LV2_State_Free_Path* free_path = NULL;
+#endif
 
 	for (int i = 0; features[i]; ++i) {
 		if (!strcmp (features[i]->URI, LV2_STATE__mapPath)) {
 			map_path = (LV2_State_Map_Path*) features[i]->data;
 		}
+#ifdef LV2_STATE__freePath
+		else if (!strcmp(features[i]->URI, LV2_STATE__freePath)) {
+			free_path = (LV2_State_Free_Path*)features[i]->data;
+		}
+#endif
 	}
 
 	if (map_path && self->cfg_file_path) {
@@ -961,6 +969,16 @@ save (LV2_Handle                instance,
 				apath, strlen (apath) + 1,
 				self->uris.atom_Path,
 				LV2_STATE_IS_POD | LV2_STATE_IS_PORTABLE);
+#ifdef LV2_STATE__freePath
+		if (free_path) {
+			free_path->free_path (free_path->handle, apath);
+		} else
+#endif
+#ifndef _WIN32 // https://github.com/drobilla/lilv/issues/14
+		{
+			free (apath);
+		}
+#endif
 	}
 #endif
 	return LV2_STATE_SUCCESS;
@@ -1015,11 +1033,19 @@ restore (LV2_Handle                  instance,
 	}
 
 	LV2_State_Map_Path* map_path = NULL;
+#ifdef LV2_STATE__freePath
+	LV2_State_Free_Path* free_path = NULL;
+#endif
 
 	for (int i = 0; features[i]; ++i) {
 		if (!strcmp (features[i]->URI, LV2_STATE__mapPath)) {
 			map_path = (LV2_State_Map_Path*) features[i]->data;
 		}
+#ifdef LV2_STATE__freePath
+		else if (!strcmp(features[i]->URI, LV2_STATE__freePath)) {
+			free_path = (LV2_State_Free_Path*)features[i]->data;
+		}
+#endif
 	}
 
 	if (!loaded && map_path) {
@@ -1028,8 +1054,15 @@ restore (LV2_Handle                  instance,
 		if (value) {
 			char* path = map_path->absolute_path (map_path->handle, (const char*)value);
 			parse_config_file (self, path);
+#ifdef LV2_STATE__freePath
+			if (free_path) {
+				free_path->free_path (free_path->handle, path);
+			} else
+#endif
 #ifndef _WIN32 // https://github.com/drobilla/lilv/issues/14
-			free (path);
+			{
+				free (path);
+			}
 #endif
 		}
 	}
