@@ -1,6 +1,7 @@
 @prefix atom:  <http://lv2plug.in/ns/ext/atom#> .
 @prefix doap:  <http://usefulinc.com/ns/doap#> .
 @prefix foaf:  <http://xmlns.com/foaf/0.1/> .
+@prefix log:   <http://lv2plug.in/ns/ext/log#> .
 @prefix lv2:   <http://lv2plug.in/ns/lv2core#> .
 @prefix midi:  <http://lv2plug.in/ns/ext/midi#> .
 @prefix patch: <http://lv2plug.in/ns/ext/patch#> .
@@ -9,6 +10,9 @@
 @prefix state: <http://lv2plug.in/ns/ext/state#> .
 @prefix urid:  <http://lv2plug.in/ns/ext/urid#> .
 @prefix work:  <http://lv2plug.in/ns/ext/worker#> .
+
+# https://github.com/drobilla/lilv/issues/14
+state:freePath a lv2:Feature .
 
 <http://gareus.org/rgareus#me>
 	a foaf:Person;
@@ -27,8 +31,8 @@
 	doap:maintainer <http://gareus.org/rgareus#me>;
 	doap:name "Midi Event Map";
 	@VERSION@
-	lv2:optionalFeature lv2:hardRTCapable;
 	lv2:requiredFeature urid:map, work:schedule;
+	lv2:optionalFeature lv2:hardRTCapable, log:log, state:mapPath, state:freePath;
 	lv2:extensionData work:interface, state:interface;
 
 	patch:writable <http://gareus.org/oss/lv2/midimap#cfgfile>;
