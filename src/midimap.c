@@ -974,11 +974,11 @@ save (LV2_Handle                instance,
 			free_path->free_path (free_path->handle, apath);
 		} else
 #endif
-#ifndef _WIN32 // https://github.com/drobilla/lilv/issues/14
 		{
+#ifndef _WIN32 // https://github.com/drobilla/lilv/issues/14
 			free (apath);
-		}
 #endif
+		}
 	}
 #endif
 	return LV2_STATE_SUCCESS;
@@ -1059,11 +1059,11 @@ restore (LV2_Handle                  instance,
 				free_path->free_path (free_path->handle, path);
 			} else
 #endif
-#ifndef _WIN32 // https://github.com/drobilla/lilv/issues/14
 			{
+#ifndef _WIN32 // https://github.com/drobilla/lilv/issues/14
 				free (path);
-			}
 #endif
+			}
 		}
 	}
 
