@@ -352,7 +352,7 @@ static bool parse_status (Rule* r, const char* arg)
 
 static uint8_t parse_note (const char* arg)
 {
-	if (strlen (arg) < 2) {
+	if (strlen (arg) < 2 || 0 == strcasecmp (arg, "ANY")) {
 		return 0xff;
 	}
 
@@ -374,6 +374,11 @@ static uint8_t parse_note (const char* arg)
 	else if (arg[1] == 'b') { --key; ++pos;}
 
 	if (strlen (arg) < pos + 1) {
+		return 0xff;
+	}
+
+	/* !isdigit (arg[pos]) */
+	if (arg[pos] < '0' || arg[pos] > '9') {
 		return 0xff;
 	}
 
