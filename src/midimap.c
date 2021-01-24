@@ -1020,12 +1020,14 @@ restore (LV2_Handle                  instance,
 		unsigned int cfg_version = 0;
 		self->state = calloc (1, sizeof (RuleSet));
 
+		unsigned int lineno = 0;
 		while (ts && *ts && (te = strchr (ts, '\n'))) {
 			char line[MAX_CFG_LINE_LEN];
+			++lineno;
 			if (te - ts < 1023) {
 				memcpy (line, ts, te - ts);
 				line[te - ts]=0;
-				parse_config_line (self, line, &cfg_version, 0);
+				parse_config_line (self, line, &cfg_version, lineno);
 			}
 			ts = te + 1;
 		}
