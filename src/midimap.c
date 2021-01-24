@@ -1024,7 +1024,7 @@ restore (LV2_Handle                  instance,
 		while (ts && *ts && (te = strchr (ts, '\n'))) {
 			char line[MAX_CFG_LINE_LEN];
 			++lineno;
-			if (te - ts < 1023) {
+			if (te - ts < MAX_CFG_LINE_LEN - 1) {
 				memcpy (line, ts, te - ts);
 				line[te - ts]=0;
 				parse_config_line (self, line, &cfg_version, lineno);
